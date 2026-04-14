@@ -1,6 +1,9 @@
+//Main ROI: Adana, Icel, Hatay (FAO/GAUL)
 var roi = ee.FeatureCollection('FAO/GAUL/2015/level1')
-  .filter(ee.Filter.inList('ADM1_NAME',['Adana','Mersin','Hatay']))
+  .filter(ee.Filter.inList('ADM1_NAME',['Adana','Icel','Hatay']))
   .geometry();
+  
+//Kozan ROI: for fire risk model
 var kozan_roi = ee.FeatureCollection('FAO/GAUL/2015/level2')
   .filter(ee.Filter.eq('ADM2_NAME','Kozan'))
   .geometry();
@@ -12,6 +15,7 @@ Map.addLayer(kozan_roi, {color:'yellow'}, 'Kozan Subplace');
 print('Main ROI:', roi.bounds());
 print('Kozan ROI:',kozan_roi.bounds());
 
+//Load and filter by region, data range and thermal bands of MODIS
 var modis_raw = ee.ImageCollection("MODIS/061/MOD11A1")
   .filterBounds(roi)
   .filterDate('2021-01-01', '2025-12-31')
@@ -19,6 +23,7 @@ var modis_raw = ee.ImageCollection("MODIS/061/MOD11A1")
 
 print('Total image number:', modis_raw.size());
 
+//Applying QA mask
 function applyQA(image){
   var qa = image.select('QC_Day');
   var good_quality = qa.bitwiseAnd(3).eq(0);
@@ -70,7 +75,7 @@ var monthly_lst = ee.ImageCollection.fromImages(
   }).flatten()
 );
 
-print('Aylık kompozit sayısı:', monthly_lst.size());
+print('Number of monthly composites:', monthly_lst.size());
 
 var summer = modis_lst
   .filter(ee.Filter.calendarRange(6, 8, 'month'))
@@ -99,6 +104,7 @@ Map.addLayer(summer, {min:25, max:55, palette:['yellow', 'orange', 'red']}, 'LST
 Map.addLayer(winter, {min:0, max:20, palette:['blue','cyan','white']}, 'LST Winter Mean', false);
 Map.addLayer(anomaly_2023, {min:-5, max:5, palette:['blue','white','red']},'LST Anomaly 2023',false);
 
+//Exporting image to Drive
 Export.image.toDrive({
   image:summer,
   description: 'LST_Summer_Mean_2020_2025',
@@ -139,6 +145,7 @@ Export.image.toDrive({
   maxPixels: 1e9
 });
 
+//Line Chart of Eastern Mediterranean – Monthly LST(2020-2024)
 var ts_chart = ui.Chart.image.series({
   imageCollection: monthly_lst,
   region: roi,
@@ -146,7 +153,7 @@ var ts_chart = ui.Chart.image.series({
   scale:1000,
   xProperty:'system:time_start'
 }).setOptions({
-  title: 'Doğu Akdeniz - Aylık LST (2020-2024)',
+  title: 'Eastern Mediterranean – Monthly LST(2020-2024)',
   hAxis: {title:'Date'},
   vAxis:{title: 'LST (°C)'},
   lineWidth:2,
@@ -154,22 +161,3 @@ var ts_chart = ui.Chart.image.series({
 });
 
 print(ts_chart);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
