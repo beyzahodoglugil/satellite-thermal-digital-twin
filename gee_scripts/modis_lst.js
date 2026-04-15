@@ -161,3 +161,24 @@ var ts_chart = ui.Chart.image.series({
 });
 
 print(ts_chart);
+
+//Time Series
+var ts_csv = monthly_lst.map(function(image){
+  var stats = image.reduceRegion({
+    reducer: ee.Reducer.mean(),
+    geometry: roi,
+    scale: roi,
+    maxPixels: 1e9
+  });
+  return ee.Feature(null, stats)
+    .set('year', image.get('year'))
+    .set('month', image.get('month'))
+    .set('date', ee.Date(image.get('system:time_start')).format('YYYY-MM-dd'));
+});
+
+Export.table.toDrive({
+  collection: ee.FeatureCollection(ts_csv),
+  description: 'MODIS_LST_Monthly_Time_Series',
+  folder: 'GEE_LST_Exports',
+  fileFormat: 'CSV'
+});
