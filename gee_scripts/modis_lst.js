@@ -1,184 +1,204 @@
-//Main ROI: Adana, Icel, Hatay (FAO/GAUL)
+// Main ROI: Adana, Icel, Hatay province boundaries
 var roi = ee.FeatureCollection('FAO/GAUL/2015/level1')
-  .filter(ee.Filter.inList('ADM1_NAME',['Adana','Icel','Hatay']))
+  .filter(ee.Filter.inList('ADM1_NAME', ['Adana', 'Icel', 'Hatay']))
   .geometry();
-  
-//Kozan ROI: for fire risk model
+
+// Sub-region: Kozan district for fire risk model
 var kozan_roi = ee.FeatureCollection('FAO/GAUL/2015/level2')
-  .filter(ee.Filter.eq('ADM2_NAME','Kozan'))
+  .filter(ee.Filter.eq('ADM2_NAME', 'Kozan'))
   .geometry();
 
 Map.setCenter(36.2, 36.8, 9);
 Map.addLayer(roi, {color: 'white'}, 'Main ROI');
-Map.addLayer(kozan_roi, {color:'yellow'}, 'Kozan Subplace');
+Map.addLayer(kozan_roi, {color: 'yellow'}, 'Kozan Sub-region');
 
-print('Main ROI:', roi.bounds());
-print('Kozan ROI:',kozan_roi.bounds());
-
-//Load and filter by region, data range and thermal bands of MODIS
-var modis_raw = ee.ImageCollection("MODIS/061/MOD11A1")
+// Filter by region, date range and select thermal + QA bands
+var modis_raw = ee.ImageCollection('MODIS/061/MOD11A1')
   .filterBounds(roi)
-  .filterDate('2021-01-01', '2025-12-31')
-  .select('LST_Day_1km', 'QC_Day');
+  .filterDate('2020-01-01', '2025-01-01')  // tutarlı tarih aralığı
+  .select(['LST_Day_1km', 'QC_Day']);
 
-print('Total image number:', modis_raw.size());
+print('Total MODIS images:', modis_raw.size());
 
-//Applying QA mask
-function applyQA(image){
+// Mask low-quality pixels (QC bits 0-1) and convert Kelvin to Celsius
+function applyQA(image) {
   var qa = image.select('QC_Day');
   var good_quality = qa.bitwiseAnd(3).eq(0);
   var lst = image.select('LST_Day_1km')
     .updateMask(good_quality)
     .multiply(0.02)
     .subtract(273.15)
-    .rename('LST_C')
+    .rename('LST_C');
   return lst.copyProperties(image, ['system:time_start']);
 }
 
 var modis_lst = modis_raw.map(applyQA);
 
+// Check July 2023 statistics for data sanity
 var sample = modis_lst
   .filterDate('2023-07-01', '2023-07-15')
   .mean()
   .clip(roi);
-  
-var vis = {min: 20, max: 55, palette: ['blue','cyan','yellow','orange','red']};
-Map.addLayer(sample, vis, 'LST Sample(July 2023)');
+
+Map.addLayer(sample,
+  {min: 20, max: 55, palette: ['blue', 'cyan', 'yellow', 'orange', 'red']},
+  'LST Sample July 2023');
 
 var stats_check = sample.reduceRegion({
   reducer: ee.Reducer.mean()
     .combine(ee.Reducer.min(), null, true)
     .combine(ee.Reducer.max(), null, true),
   geometry: roi,
-  scale:1000,
-  maxPixels:1e9
+  scale: 1000,
+  maxPixels: 1e9
 });
+print('Data validation (July 2023):', stats_check);
 
-print('Data correction (July 2023):', stats_check);
-
-var months =ee.List.sequence(1,12);
-var years =ee.List.sequence(2020,2024);
+// Compute monthly mean LST for each year-month combination
+var months = ee.List.sequence(1, 12);
+var years = ee.List.sequence(2020, 2024);
 
 var monthly_lst = ee.ImageCollection.fromImages(
-  years.map(function(y){
-    return months.map(function(m){
+  years.map(function(y) {
+    return months.map(function(m) {
       return modis_lst
         .filter(ee.Filter.calendarRange(y, y, 'year'))
         .filter(ee.Filter.calendarRange(m, m, 'month'))
         .mean()
+        .rename('LST_C')
         .clip(roi)
         .set('year', y)
         .set('month', m)
-        .set('system:time_start',
-             ee.Date.fromYMD(y, m, 1).millis());
+        .set('system:time_start', ee.Date.fromYMD(y, m, 1).millis());
     });
   }).flatten()
 );
 
-print('Number of monthly composites:', monthly_lst.size());
+print('Monthly composite count:', monthly_lst.size());
 
+// Compute summer mean (June-August)
 var summer = modis_lst
   .filter(ee.Filter.calendarRange(6, 8, 'month'))
   .mean().clip(roi).rename('LST_Summer');
-  
+
+// Compute winter mean (December-February)
 var winter = modis_lst
   .filter(ee.Filter.calendarRange(12, 2, 'month'))
   .mean().clip(roi).rename('LST_Winter');
-  
-var annual_max= modis_lst
-  .filter(ee.Filter.calendarRange(2020, 2024, 'year'))
+
+// Compute annual max and min
+var annual_max = modis_lst
+  .filterDate('2020-01-01', '2025-01-01')
   .max().clip(roi);
-  
-var annual_min= modis_lst
-  .filter(ee.Filter.calendarRange(2020, 2024, 'year'))
+
+var annual_min = modis_lst
+  .filterDate('2020-01-01', '2025-01-01')
   .min().clip(roi);
-  
-var longterm_mean=modis_lst.mean().clip(roi);
-var anomaly_2023=modis_lst
+
+// Compute 2023 anomaly relative to long-term mean
+var longterm_mean = modis_lst.mean().clip(roi);
+var anomaly_2023 = modis_lst
   .filterDate('2023-01-01', '2024-01-01')
   .mean().clip(roi)
   .subtract(longterm_mean)
-  .rename('LST_Anomali');
-  
-Map.addLayer(summer, {min:25, max:55, palette:['yellow', 'orange', 'red']}, 'LST Summer Mean');
-Map.addLayer(winter, {min:0, max:20, palette:['blue','cyan','white']}, 'LST Winter Mean', false);
-Map.addLayer(anomaly_2023, {min:-5, max:5, palette:['blue','white','red']},'LST Anomaly 2023',false);
+  .rename('LST_Anomaly');
 
-//Exporting image to Drive
-Export.image.toDrive({
-  image:summer,
-  description: 'LST_Summer_Mean_2020_2025',
-  folder:'GEE_LST_Exports',
-  region:roi.bounds(),
+// Visualize layers
+Map.addLayer(summer,
+  {min: 25, max: 55, palette: ['yellow', 'orange', 'red']},
+  'LST Summer Mean');
+Map.addLayer(winter,
+  {min: 0, max: 20, palette: ['blue', 'cyan', 'white']},
+  'LST Winter Mean', false);
+Map.addLayer(anomaly_2023,
+  {min: -5, max: 5, palette: ['blue', 'white', 'red']},
+  'LST Anomaly 2023', false);
+
+// Time series
+
+var ts_chart = ui.Chart.image.series({
+  imageCollection: monthly_lst,
+  region: roi,
+  reducer: ee.Reducer.mean(),
   scale: 1000,
-  crs:'EPSG:4326',
-  maxPixels:1e9
+  xProperty: 'system:time_start'
+}).setOptions({
+  title: 'Eastern Mediterranean — Monthly LST (2020-2024)',
+  hAxis: {title: 'Date'},
+  vAxis: {title: 'LST (°C)'},
+  lineWidth: 2,
+  colors: ['red']
 });
 
-Export.image.toDrive({
-  image:winter,
-  description:'LST_Winter_Mean_2020_2025',
-  folder:'GEE_LST_Exports',
-  region:roi.bounds(),
-  scale:1000,
-  crs:'EPSG:4326',
-  maxPixels:1e9
-});
+print(ts_chart);
 
-Export.image.toDrive({
-  image:summer.clip(kozan_roi),
-  description: 'LST_Kozan_Summer_2020_2025',
-  folder:'GEE_LST_Exports',
-  region:kozan_roi.bounds(1, 'EPSG:4326'),
-  scale:1000,
-  crs:'EPSG:4326',
-  maxPixels:1e9
-});
+var export_region = roi.bounds(1, 'EPSG:4326');
 
+// Export summer mean
 Export.image.toDrive({
-  image: anomaly_2023,
-  description: 'LST_Anomaly_2023',
+  image: summer,
+  description: 'LST_Summer_Mean_2020_2025',
   folder: 'GEE_LST_Exports',
-  region: roi.bounds(),
+  region: export_region,
   scale: 1000,
   crs: 'EPSG:4326',
   maxPixels: 1e9
 });
 
-//Line Chart of Eastern Mediterranean – Monthly LST(2020-2024)
-var ts_chart = ui.Chart.image.series({
-  imageCollection: monthly_lst,
-  region: roi,
-  reducer: ee.Reducer.mean(),
-  scale:1000,
-  xProperty:'system:time_start'
-}).setOptions({
-  title: 'Eastern Mediterranean – Monthly LST(2020-2024)',
-  hAxis: {title:'Date'},
-  vAxis:{title: 'LST (°C)'},
-  lineWidth:2,
-  colors:['red']
+// Export winter mean
+Export.image.toDrive({
+  image: winter,
+  description: 'LST_Winter_Mean_2020_2025',
+  folder: 'GEE_LST_Exports',
+  region: export_region,
+  scale: 1000,
+  crs: 'EPSG:4326',
+  maxPixels: 1e9
 });
 
-print(ts_chart);
-
-//Time Series
-var ts_csv = monthly_lst.map(function(image){
-  var stats = image.reduceRegion({
-    reducer: ee.Reducer.mean(),
-    geometry: roi,
-    scale: roi,
-    maxPixels: 1e9
-  });
-  return ee.Feature(null, stats)
-    .set('year', image.get('year'))
-    .set('month', image.get('month'))
-    .set('date', ee.Date(image.get('system:time_start')).format('YYYY-MM-dd'));
+// Export 2023 anomaly
+Export.image.toDrive({
+  image: anomaly_2023,
+  description: 'LST_Anomaly_2023',
+  folder: 'GEE_LST_Exports',
+  region: export_region,
+  scale: 1000,
+  crs: 'EPSG:4326',
+  maxPixels: 1e9
 });
+
+// Export Kozan summer subset
+Export.image.toDrive({
+  image: summer.clip(kozan_roi),
+  description: 'LST_Kozan_Summer_2020_2025',
+  folder: 'GEE_LST_Exports',
+  region: kozan_roi.bounds(1, 'EPSG:4326'),
+  scale: 1000,
+  crs: 'EPSG:4326',
+  maxPixels: 1e9
+});
+
+// Export monthly time series as CSV
+var ts_csv = ee.FeatureCollection(
+  monthly_lst.map(function(image) {
+    var stats = image.reduceRegion({
+      reducer: ee.Reducer.mean(),
+      geometry: roi,
+      scale: 5000,        // coarser scale to avoid memory error
+      bestEffort: true
+    });
+    return ee.Feature(null, {
+      'date': ee.Date(image.get('system:time_start')).format('YYYY-MM-dd'),
+      'year': image.get('year'),
+      'month': image.get('month'),
+      'LST_mean': stats.get('LST_C')
+    });
+  })
+);
 
 Export.table.toDrive({
-  collection: ee.FeatureCollection(ts_csv),
-  description: 'MODIS_LST_Monthly_Time_Series',
+  collection: ts_csv,
+  description: 'MODIS_LST_Monthly_Timeseries',
   folder: 'GEE_LST_Exports',
   fileFormat: 'CSV'
 });
