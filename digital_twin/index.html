@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -462,3 +463,469 @@
 
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Eastern Mediterranean — Thermal Digital Twin</title>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet"/>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #header {
+      background: rgba(0,0,0,0.7);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #333;
+      z-index: 10;
+    }
+
+    #header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #ff6b35;
+      letter-spacing: 0.5px;
+    }
+
+    #header p {
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 2px;
+    }
+
+    #controls {
+      background: rgba(0,0,0,0.6);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #333;
+      z-index: 10;
+    }
+
+    #controls span {
+      font-size: 12px;
+      color: #aaa;
+      margin-right: 6px;
+    }
+
+    .layer-btn {
+      padding: 7px 16px;
+      border: 1px solid #555;
+      border-radius: 20px;
+      background: transparent;
+      color: #ccc;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .layer-btn:hover {
+      border-color: #ff6b35;
+      color: #ff6b35;
+    }
+
+    .layer-btn.active {
+      background: #ff6b35;
+      border-color: #ff6b35;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    #opacity-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    #opacity-slider {
+      width: 100px;
+      accent-color: #ff6b35;
+    }
+
+    #cesiumContainer {
+      flex: 1;
+      width: 100%;
+    }
+
+    #legend {
+      position: absolute;
+      bottom: 40px;
+      right: 20px;
+      background: rgba(0,0,0,0.75);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 12px 16px;
+      z-index: 100;
+      min-width: 160px;
+    }
+
+    #legend h3 {
+      font-size: 11px;
+      color: #aaa;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .legend-bar {
+      width: 100%;
+      height: 14px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+    }
+
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #bbb;
+    }
+
+    #info {
+      position: absolute;
+      top: 120px;
+      left: 20px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: #ccc;
+      z-index: 100;
+      max-width: 220px;
+      line-height: 1.6;
+    }
+
+    #info strong {
+      color: #ff6b35;
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    /* click pop-up */
+    #popup {
+      display: none;
+      position: fixed;
+      background: rgba(0,0,0,0.9);
+      border: 1px solid #ff6b35;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #fff;
+      z-index: 300;
+      pointer-events: none;
+      line-height: 1.8;
+      min-width: 180px;
+    }
+
+    #popup strong {
+      color: #ff6b35;
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="header">
+    <div>
+      <h1>🌡️ Eastern Mediterranean — Thermal Digital Twin</h1>
+      <p>MODIS LST · Adana / İçel / Hatay · 2020–2025</p>
+    </div>
+  </div>
+
+  <div id="controls">
+    <span>LST Layer:</span>
+    <button class="layer-btn active" onclick="setLayer('summer', this)">☀️ Summer Mean</button>
+    <button class="layer-btn" onclick="setLayer('winter', this)">❄️ Winter Mean</button>
+    <button class="layer-btn" onclick="setLayer('anomaly', this)">📊 Anomaly 2023</button>
+    <button class="layer-btn" onclick="setLayer('kozan', this)">🔥 Kozan Sub-region</button>
+
+    <div id="opacity-control">
+      <label for="opacity-slider">Opacity:</label>
+      <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="0.7"
+             oninput="updateOpacity(this.value)"/>
+      <span id="opacity-value">0.70</span>
+    </div>
+  </div>
+
+  <div id="cesiumContainer"></div>
+
+  <!-- Click popup -->
+  <div id="popup">
+    <strong id="popup-title">LST</strong>
+    <span id="popup-coords"></span><br/>
+    <span id="popup-temp"></span>
+  </div>
+
+  <!-- Legend -->
+  <div id="legend">
+    <h3 id="legend-title">Summer LST (°C)</h3>
+    <div class="legend-bar" id="legend-bar"
+         style="background: linear-gradient(to right, #313695, #4575b4, #74add1,
+                #abd9e9, #e0f3f8, #ffffbf, #fee090, #fdae61, #f46d43, #d73027, #a50026);">
+    </div>
+    <div class="legend-labels">
+      <span id="legend-min">25°C</span>
+      <span id="legend-max">50°C</span>
+    </div>
+  </div>
+
+  <!-- Info -->
+  <div id="info">
+    <strong>About this layer</strong>
+    <span id="info-text">
+      5-year summer mean LST (June–August, 2020–2025) derived from MODIS MOD11A1 at 1 km resolution.
+    </span>
+  </div>
+
+  <script>
+    // Token
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2Njg0M2U1MS1iNmJlLTQ1ZjAtOTM0MS02YTFiYjk5NzY5ZTYiLCJpZCI6NDIxNzM0LCJpYXQiOjE3NzY4NDg5NDl9._-H24gbognh29FruT2rh9X_ebOQV29dVkJGd3RmVCKk'; // ← kendi token'ını yapıştır
+
+    // Viewer
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+      terrain: Cesium.Terrain.fromWorldTerrain(),
+      baseLayerPicker: false,
+      navigationHelpButton: false,
+      sceneModePicker: false,
+      geocoder: false,
+      homeButton: false,
+      fullscreenButton: false,
+      animation: false,
+      timeline: false,
+    });
+
+    // Camera location
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(36.2, 36.8, 350000),
+      orientation: {
+        heading: Cesium.Math.toRadians(0),
+        pitch:   Cesium.Math.toRadians(-45),
+        roll:    0.0
+      }
+    });
+
+    // ROI limit
+    const ROI_MIN_LON = 35.8;
+    const ROI_MAX_LON = 36.6;
+    const ROI_MIN_LAT = 36.0;
+    const ROI_MAX_LAT = 37.6;
+    const rectangle = Cesium.Rectangle.fromDegrees(ROI_MIN_LON, ROI_MIN_LAT, ROI_MAX_LON, ROI_MAX_LAT);
+
+    // Layers
+    const layers = {
+      summer: {
+        url:      'overlays/lst_summer.png',
+        title:    'Summer LST (°C)',
+        min:      '25°C',
+        max:      '50°C',
+        minVal:   25,
+        maxVal:   50,
+        info:     '5-year summer mean LST (June–August, 2020–2025) from MODIS MOD11A1 at 1 km resolution.',
+        gradient: 'linear-gradient(to right, #313695, #4575b4, #74add1, #abd9e9, #ffffbf, #fee090, #fdae61, #f46d43, #a50026)'
+      },
+      winter: {
+        url:      'overlays/lst_winter.png',
+        title:    'Winter LST (°C)',
+        min:      '0°C',
+        max:      '20°C',
+        minVal:   0,
+        maxVal:   20,
+        info:     '5-year winter mean LST (December–February, 2020–2025) from MODIS MOD11A1 at 1 km resolution.',
+        gradient: 'linear-gradient(to right, #313695, #4575b4, #74add1, #abd9e9, #ffffbf, #fee090, #fdae61, #f46d43, #a50026)'
+      },
+      anomaly: {
+        url:      'overlays/lst_anomaly.png',
+        title:    'LST Anomaly 2023 (°C)',
+        min:      '-5°C',
+        max:      '+5°C',
+        minVal:   -5,
+        maxVal:   5,
+        info:     '2023 LST anomaly relative to 2020–2025 long-term mean. Blue = cooler, Red = warmer than average.',
+        gradient: 'linear-gradient(to right, #2166ac, #92c5de, #f7f7f7, #f4a582, #d6604d)'
+      },
+      kozan: {
+        url:      'overlays/lst_kozan.png',
+        title:    'Kozan Sub-region LST (°C)',
+        min:      '25°C',
+        max:      '50°C',
+        minVal:   25,
+        maxVal:   50,
+        info:     'Summer LST for Kozan district (Adana). Used as sub-region for fire risk modelling.',
+        gradient: 'linear-gradient(to right, #313695, #4575b4, #74add1, #abd9e9, #ffffbf, #fee090, #fdae61, #f46d43, #a50026)'
+      }
+    };
+
+    let currentOverlay  = null;
+    let currentOpacity  = 0.7;
+    let currentLayerKey = 'summer';
+
+    // Set layer
+    function setLayer(key, btnElement) {
+      currentLayerKey = key;
+
+      if (currentOverlay) {
+        viewer.scene.imageryLayers.remove(currentOverlay);
+        currentOverlay = null;
+      }
+
+      const layer = layers[key];
+
+      const provider = new Cesium.SingleTileImageryProvider({
+        url: layer.url,
+        rectangle: rectangle
+      });
+
+      currentOverlay = viewer.scene.imageryLayers.addImageryProvider(provider);
+      currentOverlay.alpha = currentOpacity;
+
+      document.getElementById('legend-title').textContent        = layer.title;
+      document.getElementById('legend-min').textContent          = layer.min;
+      document.getElementById('legend-max').textContent          = layer.max;
+      document.getElementById('legend-bar').style.background     = layer.gradient;
+      document.getElementById('info-text').textContent           = layer.info;
+
+      document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+      btnElement.classList.add('active');
+
+      // Close pop-up
+      document.getElementById('popup').style.display = 'none';
+    }
+
+    // Opacity control
+    function updateOpacity(val) {
+      currentOpacity = parseFloat(val);
+      document.getElementById('opacity-value').textContent = currentOpacity.toFixed(2);
+      if (currentOverlay) currentOverlay.alpha = currentOpacity;
+    }
+
+    // Temprature
+    const popup  = document.getElementById('popup');
+    const canvas = viewer.scene.canvas;
+
+    
+    const imgCache = {};
+
+    canvas.addEventListener('click', function(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // Location
+      const cartesian = viewer.camera.pickEllipsoid(
+        new Cesium.Cartesian2(x, y),
+        viewer.scene.globe.ellipsoid
+      );
+
+      if (!cartesian) {
+        popup.style.display = 'none';
+        return;
+      }
+
+      const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+      const lon = Cesium.Math.toDegrees(cartographic.longitude);
+      const lat = Cesium.Math.toDegrees(cartographic.latitude);
+
+      // Close pop-up
+      if (lon < ROI_MIN_LON || lon > ROI_MAX_LON || lat < ROI_MIN_LAT || lat > ROI_MAX_LAT) {
+        popup.style.display = 'none';
+        return;
+      }
+
+      // Normalize pozition (0-1)
+      const normX = (lon - ROI_MIN_LON) / (ROI_MAX_LON - ROI_MIN_LON);
+      const normY = 1 - (lat - ROI_MIN_LAT) / (ROI_MAX_LAT - ROI_MIN_LAT);
+
+      const layer   = layers[currentLayerKey];
+      const imgUrl  = layer.url;
+
+      function readPixelAndShow(img) {
+        const offscreen = document.createElement('canvas');
+        offscreen.width  = img.width;
+        offscreen.height = img.height;
+        const ctx = offscreen.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        const px = Math.floor(normX * img.width);
+        const py = Math.floor(normY * img.height);
+        const pixelData = ctx.getImageData(px, py, 1, 1).data;
+
+        const alpha = pixelData[3];
+
+        // Transparent pixel - no data
+        if (alpha < 10) {
+          popup.style.display = 'none';
+          return;
+        }
+
+        // Temperature estimation from channel R
+        // RdYlBu_r colormap: low R → cold, high R → warm (approx.)
+        const r = pixelData[0] / 255;
+        const temp = layer.minVal + r * (layer.maxVal - layer.minVal);
+
+        document.getElementById('popup-title').textContent  = layer.title;
+        document.getElementById('popup-coords').textContent = `📍 ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`;
+        document.getElementById('popup-temp').textContent   = `🌡️ ~${temp.toFixed(1)}°C`;
+
+        popup.style.display = 'block';
+        popup.style.left    = (e.clientX + 16) + 'px';
+        popup.style.top     = (e.clientY - 10) + 'px';
+      }
+
+      // In the cache use directly
+      if (imgCache[imgUrl]) {
+        readPixelAndShow(imgCache[imgUrl]);
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = imgUrl;
+        img.onload = function() {
+          imgCache[imgUrl] = img;
+          readPixelAndShow(img);
+        };
+        img.onerror = function() {
+          popup.style.display = 'none';
+        };
+      }
+    });
+
+    // Rigth click- close pop-up
+    canvas.addEventListener('contextmenu', () => {
+      popup.style.display = 'none';
+    });
+
+    // Load summer layer first
+    window.addEventListener('load', () => {
+      document.querySelector('.layer-btn.active').click();
+    });
+
+  </script>
+
+</body>
+</html>
+>>>>>>> 6ad0e830aaf911fd12fff8024c74a991689b8a26
